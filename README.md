@@ -26,6 +26,18 @@ uv run python -m ppe.frcnn.train --config configs/fasterrcnn.yaml --seed 0
 
 To use a run's numbers in the report, tag the run `report` in the ClearML UI. Report runs should come from a clean commit.
 
+## Evaluate
+
+Every training run evaluates itself on the validation split when it finishes. Results go into the same ClearML run: `valid eval` scalars plus the `valid_eval` and `valid_predictions` artifacts. Scoring is done by `src/ppe_detection_evaluation` (owner: Harunori Kawano).
+
+```bash
+uv run python -m ppe.evaluate --task <run-id>                # redo validation evaluation for one run
+uv run python -m ppe.evaluate --final --tag report           # FINAL test evaluation, once per report run, on a GPU
+uv run python -m ppe.summarise --tag report                  # mean ± std over seeds -> results/summary.{csv,md}
+```
+
+The test split is used once. `--final` refuses to evaluate a run twice; it only retries a run whose previous attempt failed. Run it once, on one GPU machine, so that latencies are comparable.
+
 ## Dataset
 
 The data comes from ClearML by the ID in `configs/common.yaml`. One account holder registers it once:
