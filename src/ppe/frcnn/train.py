@@ -140,16 +140,21 @@ def main() -> None:
     logger.report_single_value("best mAP50-95(B)", best_map)
     if task.is_offline():
         print(f"offline: model not registered in ClearML; best val mAP50-95 {best_map:.4f}, weights at {best_path}")
-        return
-    from clearml import OutputModel
+    else:
+        from clearml import OutputModel
 
-    output = OutputModel(
-        task=task, name=f"{cfg['model']['name']}-seed{cfg['seed']}", framework="PyTorch",
-        label_enumeration={name: i + 1 for i, name in enumerate(CLASS_NAMES)},
-    )
-    output.update_weights(weights_filename=str(best_path), auto_delete_file=False)
-    print(f"best val mAP50-95 {best_map:.4f}; weights at {best_path}")
+        output = OutputModel(
+            task=task, name=f"{cfg['model']['name']}-seed{cfg['seed']}", framework="PyTorch",
+            label_enumeration={name: i + 1 for i, name in enumerate(CLASS_NAMES)},
+        )
+        output.update_weights(weights_filename=str(best_path), auto_delete_file=False)
+        print(f"best val mAP50-95 {best_map:.4f}; weights at {best_path}")
 
+    # Weights are saved/uploaded above, so an evaluation failure can't lose them.
+    from ppe.evaluate import run_validation_eval
+    from ppe.predict import FrcnnPredictor
+
+    run_validation_eval(task, cfg, FrcnnPredictor.load(best_path, cfg["imgsz"]), valid_dir)
 
 if __name__ == "__main__":
     main()

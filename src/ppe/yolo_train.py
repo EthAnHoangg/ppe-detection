@@ -8,7 +8,9 @@ Ultralytics' ClearML callback attaches to the run opened by `start_run` and logs
 from pathlib import Path
 
 from ppe.config import parse_args
-from ppe.data import dataset_root, write_yolo_yaml
+from ppe.data import dataset_root, train_val_dirs, write_yolo_yaml
+from ppe.evaluate import run_validation_eval
+from ppe.predict import YoloPredictor
 from ppe.seed import seed_everything
 from ppe.tracking import start_run
 
@@ -38,18 +40,23 @@ def main() -> None:
     task = start_run(cfg)
     seed_everything(cfg["seed"])
     run_dir = Path("runs").resolve() / task.id
-    data_yaml = write_yolo_yaml(dataset_root(cfg), run_dir)
+    root = dataset_root(cfg)
+    data_yaml = write_yolo_yaml(root, run_dir)
 
     from ultralytics import YOLO
 
+    model = YOLO(cfg["yolo"]["weights"])
     try:
-        YOLO(cfg["yolo"]["weights"]).train(**train_kwargs(cfg, data_yaml, run_dir))
+        model.train(**train_kwargs(cfg, data_yaml, run_dir))
     except AttributeError as err:
         # ClearML offline mode can't register output models; Ultralytics tries to at train end, after saving weights.
         if not (task.is_offline() and "DummyModel" in str(err)):
             raise
         print(f"offline: training finished, model not registered in ClearML (weights are under {run_dir})")
 
+    # Best weights are saved (and, online, uploaded) before this point, so an evaluation failure can't lose them.
+    _, valid_dir = train_val_dirs(root)
+    run_validation_eval(task, cfg, YoloPredictor.load(Path(model.trainer.best), cfg["imgsz"]), valid_dir)
 
 if __name__ == "__main__":
     main()
