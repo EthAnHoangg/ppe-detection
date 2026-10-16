@@ -1,6 +1,6 @@
 # PPE detection: YOLO26 vs Faster R-CNN
 
-Trains YOLO26s (Ultralytics) and Faster R-CNN R50-FPN v2 (torchvision) on the Roboflow Construction Site Safety dataset. Every run is tracked in the shared ClearML project `PPE-Detection`. The design is in `docs/superpowers/specs/2026-10-16-clearml-mlops-design.md`.
+Trains YOLO26s (Ultralytics) and Faster R-CNN R50-FPN v2 (torchvision) on the Roboflow Construction Site Safety dataset. Every run is tracked in the shared ClearML project `PPE-Detection`.
 
 ## Setup (once per machine: Colab terminal, Kaggle, lab GPU)
 

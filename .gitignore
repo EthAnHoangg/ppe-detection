@@ -15,3 +15,6 @@ CLAUDE.md
 ~$*.docx
 # Generated summaries (rebuild with: uv run python -m ppe.summarise)
 results/
+# Design specs and implementation plans stay local, never in git
+docs/superpowers/
+.superpowers/
