@@ -13,3 +13,5 @@ Assignment1.md
 Evaluation_draft.md
 CLAUDE.md
 ~$*.docx
+# Generated summaries (rebuild with: uv run python -m ppe.summarise)
+results/
