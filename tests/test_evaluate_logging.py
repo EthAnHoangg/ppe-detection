@@ -27,6 +27,9 @@ class _Task:
         self.artifacts[name] = json.loads(Path(artifact_object).read_text())
         return True
 
+    def flush(self, wait_for_uploads=False):
+        pass
+
 
 def _framework():
     fw = EvaluationFramework(ModelConfig("fake"))
@@ -68,3 +71,56 @@ def test_run_validation_eval_uses_smoke_limits(monkeypatch, tmp_path):
     cfg["smoke"]["enabled"] = False
     run_validation_eval(_Task(), cfg, predictor=None, valid_dir=tmp_path)
     assert (calls["limit"], calls["latency_images"], calls["warmup"]) == (None, 200, 20)
+
+
+class _FlushTask(_Task):
+    def __init__(self):
+        super().__init__()
+        self.events = []
+        self.logger.report_scalar = lambda *a, **k: self.events.append("scalar")
+
+    def flush(self, wait_for_uploads=False):
+        self.events.append(("flush", wait_for_uploads))
+
+
+def test_run_validation_eval_waits_for_pending_uploads_first(monkeypatch, tmp_path):
+    # Model uploads are async; a crash during evaluation would drop them, so they must finish first.
+    import ppe.evaluate as ev
+
+    monkeypatch.setattr(ev, "evaluate_split", lambda *a, **k: _framework())
+    task = _FlushTask()
+    cfg = {"model": {"name": "m"}, "smoke": {"enabled": False, "images": 16},
+           "eval": {"latency_warmup": 1, "latency_images": 1, "smoke_latency_images": 1}}
+    run_validation_eval(task, cfg, predictor=None, valid_dir=tmp_path)
+    assert task.events[0] == ("flush", True)
+    assert "scalar" in task.events[1:]
+
+
+class _Run(_FlushTask):
+    def __init__(self):
+        super().__init__()
+        self.id = "run1"
+        self.status_calls = []
+
+    def mark_started(self, force=False):
+        self.status_calls.append(("started", force))
+
+    def mark_completed(self):
+        self.status_calls.append("completed")
+
+
+def test_revalidate_into_logs_into_the_same_run_at_iteration_zero(monkeypatch, tmp_path):
+    import clearml
+
+    import ppe.evaluate as ev
+
+    monkeypatch.setattr(ev, "evaluate_split", lambda *a, **k: _framework())
+    monkeypatch.setattr(clearml.Task, "init", lambda *a, **k: (_ for _ in ()).throw(AssertionError("Task.init called")))
+    run = _Run()
+    scalars = []
+    run.logger.report_scalar = lambda title, series, value, iteration: scalars.append(iteration)
+    cfg = {"model": {"name": "m"}, "smoke": {"enabled": False, "images": 16}}
+    ev.revalidate_into(run, cfg, {"latency_warmup": 1, "latency_images": 1, "smoke_latency_images": 1}, None, tmp_path)
+    assert run.status_calls == [("started", True), "completed"]
+    assert scalars and set(scalars) == {0}
+    assert set(run.artifacts) == {"valid_eval", "valid_predictions"}

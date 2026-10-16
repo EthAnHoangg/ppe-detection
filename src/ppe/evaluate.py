@@ -144,6 +144,9 @@ def log_eval(task, framework: EvaluationFramework, prefix: str, threshold: float
 
 def run_validation_eval(task, cfg: dict, predictor, valid_dir: Path) -> dict[str, float]:
     """Score `predictor` on the validation split and log into the training run (smoke runs: few images, short timing)."""
+    # Model uploads are asynchronous and ClearML drops pending ones if the process crashes,
+    # so finish them before anything here can fail.
+    task.flush(wait_for_uploads=True)
     smoke = cfg["smoke"]["enabled"]
     framework = evaluate_split(
         predictor, valid_dir, cfg["model"]["name"],
@@ -219,6 +222,20 @@ def final_evaluate(run, eval_settings: dict) -> dict[str, float]:
     return metrics
 
 
+def revalidate_into(run, cfg: dict, eval_settings: dict, predictor, valid_dir: Path) -> None:
+    """Log a fresh validation evaluation into the existing training run `run`.
+
+    Deliberately not Task.init(continue_last_task=...): that would overwrite the run's recorded commit and diff
+    and offset reported iterations.
+    """
+    cfg = {**cfg}
+    cfg.setdefault("eval", eval_settings)  # runs trained before evaluation existed
+    run.mark_started(force=True)
+    run_validation_eval(run, cfg, predictor, valid_dir)
+    run.flush(wait_for_uploads=True)
+    run.mark_completed()
+
+
 def revalidate(run_id: str, eval_settings: dict) -> None:
     """(Re-)run the validation evaluation into an existing training run."""
     from clearml import Task
@@ -226,12 +243,9 @@ def revalidate(run_id: str, eval_settings: dict) -> None:
     from ppe.data import fetch_dataset
 
     run = Task.get_task(task_id=run_id)
-    cfg = {**_run_config(run)}
-    cfg.setdefault("eval", eval_settings)  # runs trained before evaluation existed
-    task = Task.init(project_name=run.get_project_name(), task_name=run.name, continue_last_task=run.id)
+    cfg = _run_config(run)
     predictor = make_predictor(cfg["model"]["name"], _weights(run), cfg["imgsz"])
-    run_validation_eval(task, cfg, predictor, fetch_dataset(cfg["dataset"]["id"]) / "valid")
-    task.close()
+    revalidate_into(run, cfg, eval_settings, predictor, fetch_dataset(cfg["dataset"]["id"]) / "valid")
 
 
 def main() -> None:

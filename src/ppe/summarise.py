@@ -32,6 +32,25 @@ def aggregate(entries: list[tuple[str, dict]]) -> dict[str, dict[str, tuple[floa
     return summary
 
 
+def _tag(tags: list[str], key: str) -> str:
+    return next((t.split(":", 1)[1] for t in tags if t.startswith(f"{key}:")), "unknown")
+
+
+def collect_entries(tasks: list[dict]) -> list[tuple[str, dict]]:
+    """[{"tags", "results"}] -> (group, results); groups are model + data version, so dataset versions never mix.
+
+    Two evaluations of the same model, data version and seed would inflate n, so they are an error.
+    """
+    seen, entries = set(), []
+    for task in tasks:
+        model, data, seed = (_tag(task["tags"], k) for k in ("model", "data", "seed"))
+        if (model, data, seed) in seen:
+            raise ValueError(f"two final evaluations for {model}, data:{data}, seed:{seed}; untag or archive one")
+        seen.add((model, data, seed))
+        entries.append((f"{model} (data:{data})", task["results"]))
+    return entries
+
+
 def _cell(mean: float, std: float, n: int) -> str:
     if n == 0:
         return "–"
@@ -62,12 +81,13 @@ def main() -> None:
     check_credentials(os.environ, offline=False)
     tags = ["final-eval", *([args.tag] if args.tag else [])]
     # ClearML ORs tag filters by default; "__$all" makes it require every tag.
-    tasks = Task.get_tasks(project_name=args.project, tags=["__$all", *tags], task_filter={"status": ["completed"]})
-    entries = []
-    for task in tasks:
-        model = next((t.split(":", 1)[1] for t in task.get_tags() if t.startswith("model:")), "unknown")
-        results = json.loads(Path(task.artifacts["test_eval"].get_local_copy()).read_text())["results"]
-        entries.append((model, results))
+    tasks = Task.get_tasks(project_name=args.project, tags=["__$all", *tags],
+                           task_filter={"status": ["completed", "published"]})
+    entries = collect_entries([
+        {"tags": task.get_tags(),
+         "results": json.loads(Path(task.artifacts["test_eval"].get_local_copy()).read_text())["results"]}
+        for task in tasks
+    ])
     if not entries:
         raise SystemExit(f"no completed final-eval tasks in {args.project} with tags {tags}")
 

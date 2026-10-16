@@ -150,7 +150,7 @@ def main() -> None:
         output.update_weights(weights_filename=str(best_path), auto_delete_file=False)
         print(f"best val mAP50-95 {best_map:.4f}; weights at {best_path}")
 
-    # Weights are saved/uploaded above, so an evaluation failure can't lose them.
+    # run_validation_eval waits for the (async) model upload before evaluating, so a failure can't lose the weights.
     from ppe.evaluate import run_validation_eval
     from ppe.predict import FrcnnPredictor
 

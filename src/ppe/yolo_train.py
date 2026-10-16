@@ -54,7 +54,7 @@ def main() -> None:
             raise
         print(f"offline: training finished, model not registered in ClearML (weights are under {run_dir})")
 
-    # Best weights are saved (and, online, uploaded) before this point, so an evaluation failure can't lose them.
+    # run_validation_eval waits for the (async) model upload before evaluating, so a failure can't lose the weights.
     _, valid_dir = train_val_dirs(root)
     run_validation_eval(task, cfg, YoloPredictor.load(Path(model.trainer.best), cfg["imgsz"]), valid_dir)
 

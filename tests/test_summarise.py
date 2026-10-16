@@ -33,3 +33,22 @@ def test_markdown_has_one_column_per_model():
     header = md.splitlines()[0]
     assert "| metric | a | b |" == header
     assert "0.500" in md
+
+
+def test_collect_entries_groups_by_model_and_data_version():
+    from ppe.summarise import collect_entries
+
+    tasks = [
+        {"tags": ["model:yolo26s", "data:v1", "seed:0", "final-eval"], "results": _results(0.5)},
+        {"tags": ["model:yolo26s", "data:v2", "seed:0", "final-eval"], "results": _results(0.9)},
+    ]
+    assert [group for group, _ in collect_entries(tasks)] == ["yolo26s (data:v1)", "yolo26s (data:v2)"]
+
+
+def test_collect_entries_rejects_duplicate_seeds():
+    from ppe.summarise import collect_entries
+
+    tasks = [{"tags": ["model:yolo26s", "data:v1", "seed:0"], "results": _results(0.5)},
+             {"tags": ["model:yolo26s", "data:v1", "seed:0"], "results": _results(0.6)}]
+    with pytest.raises(ValueError, match="seed:0"):
+        collect_entries(tasks)
