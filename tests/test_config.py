@@ -71,3 +71,8 @@ def test_committed_configs_load_with_a_valid_default_seed():
         cfg = load_config(Path(__file__).parent.parent / "configs" / name)
         assert cfg["seed"] in cfg["seeds"]
         assert cfg["imgsz"] == 640
+
+
+def test_common_config_has_eval_settings():
+    cfg = load_config(Path(__file__).parent.parent / "configs" / "yolo26s.yaml")
+    assert cfg["eval"] == {"latency_warmup": 20, "latency_images": 200, "smoke_latency_images": 5}

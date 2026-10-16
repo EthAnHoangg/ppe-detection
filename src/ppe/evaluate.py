@@ -4,7 +4,9 @@
     uv run python -m ppe.evaluate --final --tag report            # final test evaluation, once per run
 """
 
+import json
 import math
+import tempfile
 import time
 from collections import defaultdict
 from collections.abc import Callable, Sequence
@@ -111,3 +113,37 @@ def headline_metrics(results: dict) -> dict[str, float]:
         for key in ("mean_ms", "p95_ms", "fps"):
             metrics[f"latency/{key}"] = _num(latency[key])
     return metrics
+
+
+def log_eval(task, framework: EvaluationFramework, prefix: str, threshold: float | None = None) -> dict[str, float]:
+    """Headline scalars under '<prefix> eval' plus two JSON artifacts: results and per-image predictions."""
+    metrics = headline_metrics(framework.results)
+    logger = task.get_logger()
+    for name, value in metrics.items():
+        if not math.isnan(value):  # NaN = class absent from this split; ClearML charts can't show it
+            logger.report_scalar(f"{prefix} eval", name, value, iteration=0)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        saved = json.loads(framework.save(Path(tmp) / "full.json").read_text())
+        parts = {
+            f"{prefix}_eval": {"model": framework.config.name, "threshold": threshold,
+                               "settings": saved["settings"], "results": saved["results"]},
+            f"{prefix}_predictions": {"records": saved["records"]},
+        }
+        for name, payload in parts.items():
+            path = Path(tmp) / f"{name}.json"
+            path.write_text(json.dumps(payload, indent=2))
+            task.upload_artifact(name, artifact_object=str(path), wait_on_upload=True)
+    return metrics
+
+
+def run_validation_eval(task, cfg: dict, predictor, valid_dir: Path) -> dict[str, float]:
+    """Score `predictor` on the validation split and log into the training run (smoke runs: few images, short timing)."""
+    smoke = cfg["smoke"]["enabled"]
+    framework = evaluate_split(
+        predictor, valid_dir, cfg["model"]["name"],
+        latency_images=cfg["eval"]["smoke_latency_images"] if smoke else cfg["eval"]["latency_images"],
+        warmup=1 if smoke else cfg["eval"]["latency_warmup"],
+        limit=cfg["smoke"]["images"] if smoke else None,
+    )
+    return log_eval(task, framework, "valid")
