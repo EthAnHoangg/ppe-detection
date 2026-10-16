@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+# Kaggle download (~230 MB); re-fetch with the curl command in CLAUDE.md
+data/
+# Downloaded model weights and training runs
+*.pt
+runs/
+models/
+.env
+# Report documents and agent notes stay out of the code repo
+Assignment1.docx
+Assignment1.md
+Evaluation_draft.md
+CLAUDE.md
+~$*.docx
