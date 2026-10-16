@@ -1,0 +1,7 @@
+model:
+  name: yolo26s
+yolo:
+  weights: models/yolo26s.pt  # COCO-pretrained; downloaded on first use
+  batch: 16
+  workers: 4
+  train_args: {}              # extra Ultralytics train() args; YOLO26 defaults (MuSGD etc.) unless the team decides otherwise

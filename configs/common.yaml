@@ -1,0 +1,12 @@
+# Settings that must match across both models for a fair comparison.
+# Values marked "team decision" are the [bracketed] items in report Section 4; change them here, commit, then cite this file.
+project: PPE-Detection
+dataset:
+  id: null        # set from scripts/register_dataset.py output, then commit
+  version: v1
+imgsz: 640        # the images are already 640x640
+seeds: [0, 1, 2]  # team decision
+epochs: 100       # team decision: maximum epochs
+patience: 20      # team decision: early stop after this many epochs without val mAP50-95 gain
+smoke:
+  images: 16      # train/val images per split for --smoke runs

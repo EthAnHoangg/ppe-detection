@@ -1,0 +1,12 @@
+model:
+  name: fasterrcnn-r50
+frcnn:
+  batch: 4
+  workers: 4
+  lr: 0.005                  # torchvision reference: 0.02 at batch 16, scaled linearly to batch 4
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_iters: 500
+  lr_milestones: [0.67, 0.89]  # fractions of epochs at which lr is multiplied by lr_gamma
+  lr_gamma: 0.1
+  log_every: 20              # steps between training-loss reports
